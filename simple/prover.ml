@@ -10,11 +10,15 @@ type var = string
 type ty =
   | Type of tvar
   | Imp of ty * ty
+  | Pro of ty * ty
 
 type tm =
   | Var of var
   | App of tm * tm
-  | Abs of ty * var  * tm
+  | Abs of ty * var * tm
+  | Pair of tm * tm
+  | Fst of tm
+  | Snd of tm
 
 (*(((A -> B) -> A) -> C)  =  (((A -> B) -> A) -> C) *)
 let test = Imp(Imp(Imp(Type "A",Type "B"), Type "A"), Type "C")
@@ -29,6 +33,7 @@ let rec string_of_ty ty =
   match ty with
   | Type x -> x
   | Imp(x, y) -> "("^string_of_ty x^" => "^string_of_ty y^")"
+  | Pro(x, y) -> "("^string_of_ty x^" ∧ "^string_of_ty y^")"
 
 let () = print_endline(string_of_ty (test))
 
@@ -37,6 +42,9 @@ let rec string_of_tm tm =
   | Var x -> x
   | App(x, y) -> "("^string_of_tm x ^" "^ string_of_tm y^")"
   | Abs(ty, v, t) -> "(fun (" ^v^" : "^string_of_ty ty^") -> "^string_of_tm t^")"
+  | Pair(x, y) -> "⟨"^string_of_tm x^", "^string_of_tm y^"⟩"
+  | Fst(x) -> "πl("^string_of_tm x^")"
+  | Snd(x) -> "πr("^string_of_tm x^")"
 
 let test = Abs(Imp(Type "A", Type "B"), "f", Abs(Type "A", "x", App(Var "f", Var "x")))
 
@@ -51,38 +59,37 @@ let rec infer_type ctxt tm =
   | Var x -> List.assoc x ctxt
   | App(a, b) -> (
     let type_a = infer_type ctxt a in
-    let type_b = infer_type ctxt b in
     match type_a with
-    | Imp(x, y) ->(
-      match x = type_b with
-      | true -> y
-      | false -> raise Type_error
-    )
+    | Imp(x, y) -> check_type ctxt b x; y
     | _ -> raise Type_error
   )
-  | Abs(ty, v, t) -> Imp(ty, infer_type ctxt t)
+  | Abs(ty, v, t) -> Imp(ty, infer_type ((v, ty)::ctxt) t)
+  | Pair(a, b) -> Pro(infer_type ctxt a, infer_type ctxt b)
+  | Fst t -> (
+    match infer_type ctxt t with
+    | Pro(t_a, t_b) -> t_a
+    | _ -> raise Type_error
+  )
+  | Snd t -> (
+    match infer_type ctxt t with
+    | Pro(t_a, t_b) -> t_b
+    | _ -> raise Type_error
+  )
 
+and check_type ctxt tm ty =
+  if infer_type ctxt tm = ty then () else raise Type_error
 
 let test = Abs(Imp(Type "A", Type "B"), "f", Abs(Imp(Type "B", Type "C"), "g", Abs(Type "A", "x", App(Var "g", App(Var "f", Var "x")))))
 
 let u = string_of_ty (infer_type ([("f", Imp(Type "A", Type "B")); ("g", Imp(Type "B", Type "C")); ("x", Type "A")]) test)
 
-
-let check_type ctxt tm ty =
-  if infer_type ctxt tm = ty then () else raise Type_error
-
 let () = check_type ([("x", Type "A")]) (Abs (Type "A", "x", Var "x")) (Imp (Type "A", Type "A"))
 
-let () = check_type ([("x", Type "A")]) (Abs (Type "A", "x", Var "x")) (Imp (Type "B", Type "B"))
+let and_comm = Abs(Pro(Type "A", Type "B"), "t", Pair(Snd (Var "t"), Fst (Var "t")))
 
-let () = check_type ([]) (Var "x") (Type "A")
+let u = infer_type [] and_comm
 
-(*Mutually recursive:*)
+let () = print_endline (string_of_ty (infer_type [] and_comm))
 
-let rec even n =
-  if n = 0 then true
-  else odd (n-1)
+let () = print_endline (string_of_tm and_comm)
 
-and odd n =
-  if n = 0 then false
-  else even (n-1)
