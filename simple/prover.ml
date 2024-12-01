@@ -11,6 +11,7 @@ type ty =
   | Type of tvar
   | Imp of ty * ty
   | Pro of ty * ty
+  | True
 
 type tm =
   | Var of var
@@ -19,6 +20,7 @@ type tm =
   | Pair of tm * tm
   | Fst of tm
   | Snd of tm
+  | Tt
 
 (*(((A -> B) -> A) -> C)  =  (((A -> B) -> A) -> C) *)
 let test = Imp(Imp(Imp(Type "A",Type "B"), Type "A"), Type "C")
@@ -34,6 +36,7 @@ let rec string_of_ty ty =
   | Type x -> x
   | Imp(x, y) -> "("^string_of_ty x^" => "^string_of_ty y^")"
   | Pro(x, y) -> "("^string_of_ty x^" ∧ "^string_of_ty y^")"
+  | True -> "⊤"
 
 let () = print_endline(string_of_ty (test))
 
@@ -45,6 +48,8 @@ let rec string_of_tm tm =
   | Pair(x, y) -> "⟨"^string_of_tm x^", "^string_of_tm y^"⟩"
   | Fst(x) -> "πl("^string_of_tm x^")"
   | Snd(x) -> "πr("^string_of_tm x^")"
+  | Tt -> "⟨⟩"
+(*| Tt -> ""*)
 
 let test = Abs(Imp(Type "A", Type "B"), "f", Abs(Type "A", "x", App(Var "f", Var "x")))
 
@@ -75,6 +80,7 @@ let rec infer_type ctxt tm =
     | Pro(t_a, t_b) -> t_b
     | _ -> raise Type_error
   )
+  | Tt -> True
 
 and check_type ctxt tm ty =
   if infer_type ctxt tm = ty then () else raise Type_error
@@ -92,4 +98,15 @@ let u = infer_type [] and_comm
 let () = print_endline (string_of_ty (infer_type [] and_comm))
 
 let () = print_endline (string_of_tm and_comm)
+
+
+let test = Imp(Imp(True, Type "A"), Type "A")
+
+let () = print_endline( string_of_ty(test))
+
+let test2 = Abs(Imp(True, Type "A"), "f", App(Var "f", Tt))
+
+let () = print_endline( string_of_tm test2)
+
+let () = print_endline(string_of_ty( infer_type [] test2))
 
