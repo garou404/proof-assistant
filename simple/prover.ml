@@ -12,6 +12,7 @@ type ty =
   | Imp of ty * ty
   | Pro of ty * ty
   | True
+  | Cop of ty * ty
 
 type tm =
   | Var of var
@@ -21,15 +22,9 @@ type tm =
   | Fst of tm
   | Snd of tm
   | Tt
-
-(*(((A -> B) -> A) -> C)  =  (((A -> B) -> A) -> C) *)
-let test = Imp(Imp(Imp(Type "A",Type "B"), Type "A"), Type "C")
-
-(*(A -> (B -> (C -> D)))  =  A -> B -> C -> D  *) 
-let test = Imp(Type "A", Imp(Type "B", Imp(Type "C", Type "D")))
-
-(*((A -> B) -> (C -> D)))  =  (A -> B) -> C -> D *)
-let test = Imp(Imp(Type "A", Type "B"), Imp(Type "A", Type "C"))
+  | Left of tm
+  | Right of tm
+  | Case of tm * tm * tm
 
 let rec string_of_ty ty =
   match ty with
@@ -37,8 +32,7 @@ let rec string_of_ty ty =
   | Imp(x, y) -> "("^string_of_ty x^" => "^string_of_ty y^")"
   | Pro(x, y) -> "("^string_of_ty x^" ∧ "^string_of_ty y^")"
   | True -> "⊤"
-
-let () = print_endline(string_of_ty (test))
+  | Cop(x, y) -> "("^string_of_ty x^"\\/"^string_of_ty y^")"
 
 let rec string_of_tm tm =
   match tm with
@@ -50,6 +44,8 @@ let rec string_of_tm tm =
   | Snd(x) -> "πr("^string_of_tm x^")"
   | Tt -> "⟨⟩"
 (*| Tt -> ""*)
+  | Left x -> 
+  | Right x -> 
 
 let test = Abs(Imp(Type "A", Type "B"), "f", Abs(Type "A", "x", App(Var "f", Var "x")))
 
@@ -85,28 +81,14 @@ let rec infer_type ctxt tm =
 and check_type ctxt tm ty =
   if infer_type ctxt tm = ty then () else raise Type_error
 
-let test = Abs(Imp(Type "A", Type "B"), "f", Abs(Imp(Type "B", Type "C"), "g", Abs(Type "A", "x", App(Var "g", App(Var "f", Var "x")))))
 
-let u = string_of_ty (infer_type ([("f", Imp(Type "A", Type "B")); ("g", Imp(Type "B", Type "C")); ("x", Type "A")]) test)
-
-let () = check_type ([("x", Type "A")]) (Abs (Type "A", "x", Var "x")) (Imp (Type "A", Type "A"))
-
+(* ((A /\ B) => (B /\ A)) *)
 let and_comm = Abs(Pro(Type "A", Type "B"), "t", Pair(Snd (Var "t"), Fst (Var "t")))
-
-let u = infer_type [] and_comm
-
 let () = print_endline (string_of_ty (infer_type [] and_comm))
-
 let () = print_endline (string_of_tm and_comm)
 
-
-let test = Imp(Imp(True, Type "A"), Type "A")
-
-let () = print_endline( string_of_ty(test))
-
-let test2 = Abs(Imp(True, Type "A"), "f", App(Var "f", Tt))
-
-let () = print_endline( string_of_tm test2)
-
-let () = print_endline(string_of_ty( infer_type [] test2))
+(* (⊤⇒A)⇒A *)
+let () = print_endline( string_of_ty(Imp(Imp(True, Type "A"), Type "A")))
+let () = print_endline( string_of_tm (Abs(Imp(True, Type "A"), "f", App(Var "f", Tt))))
+let () = print_endline(string_of_ty( infer_type [] (Abs(Imp(True, Type "A"), "f", App(Var "f", Tt)))))
 
