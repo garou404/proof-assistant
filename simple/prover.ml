@@ -22,9 +22,9 @@ type tm =
   | Fst of tm
   | Snd of tm
   | Tt
-  | Left of tm
-  | Right of tm
-  | Case of tm * tm * tm
+  | Left of tm * ty
+  | Right of tm * ty
+  | Case of tm * var * tm * var *  tm
 
 let rec string_of_ty ty =
   match ty with
@@ -32,7 +32,7 @@ let rec string_of_ty ty =
   | Imp(x, y) -> "("^string_of_ty x^" => "^string_of_ty y^")"
   | Pro(x, y) -> "("^string_of_ty x^" ∧ "^string_of_ty y^")"
   | True -> "⊤"
-  | Cop(x, y) -> "("^string_of_ty x^"\\/"^string_of_ty y^")"
+  | Cop(x, y) -> "("^string_of_ty x^" \\/ "^string_of_ty y^")"
 
 let rec string_of_tm tm =
   match tm with
@@ -44,9 +44,11 @@ let rec string_of_tm tm =
   | Snd(x) -> "πr("^string_of_tm x^")"
   | Tt -> "⟨⟩"
 (*| Tt -> ""*)
-  | Left x -> 
-  | Right x -> 
+  | Left(x, y) -> "left("^string_of_tm x^", "^string_of_ty y^")"
+  | Right(x, y) -> "right("^string_of_tm x^", "^string_of_ty y^")"
+  | Case(t, x, u, y, v) -> "case "^string_of_tm t^" of "^x^" -> "^string_of_tm u^" | "^y^" -> "^string_of_tm v
 
+(*let print_endline (string_of_tm(Abs(Cop(Type "A", Type "B"), "t", Right(Var "t", Type "B"))))*)
 let test = Abs(Imp(Type "A", Type "B"), "f", Abs(Type "A", "x", App(Var "f", Var "x")))
 
 let () = print_endline(string_of_tm(test))
@@ -77,6 +79,17 @@ let rec infer_type ctxt tm =
     | _ -> raise Type_error
   )
   | Tt -> True
+  | Left (x, a) -> Cop(infer_type ctxt x, a)
+  | Right (x, a) -> Cop(a, infer_type ctxt x)
+  | Case(t, x, u, y, v) -> (
+    match infer_type ctxt t with
+    | Cop(a, b) ->(
+      let type_1 = infer_type ((x,a)::ctxt) u in
+      let type_2 = infer_type ((y,b)::ctxt) v in
+      if type_1 = type_2 then type_1 else raise Type_error
+    )
+    | _ -> raise Type_error
+  )
 
 and check_type ctxt tm ty =
   if infer_type ctxt tm = ty then () else raise Type_error
@@ -92,3 +105,6 @@ let () = print_endline( string_of_ty(Imp(Imp(True, Type "A"), Type "A")))
 let () = print_endline( string_of_tm (Abs(Imp(True, Type "A"), "f", App(Var "f", Tt))))
 let () = print_endline(string_of_ty( infer_type [] (Abs(Imp(True, Type "A"), "f", App(Var "f", Tt)))))
 
+(* ((A \/ B) => (B \/ A)) *)
+let or_comm = Abs(Cop(Type "A", Type "B"), "t", Case(Var "t", "x", Right(Var "x", Type "B"), "y", Left(Var "y", Type "A")))
+let () = print_endline (string_of_ty(infer_type [] or_comm))
