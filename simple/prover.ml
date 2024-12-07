@@ -13,6 +13,7 @@ type ty =
   | Pro of ty * ty
   | True
   | Cop of ty * ty
+  | False
 
 type tm =
   | Var of var
@@ -25,6 +26,8 @@ type tm =
   | Left of tm * ty
   | Right of tm * ty
   | Case of tm * var * tm * var *  tm
+  | Ff of tm * ty
+
 
 let rec string_of_ty ty =
   match ty with
@@ -33,6 +36,8 @@ let rec string_of_ty ty =
   | Pro(x, y) -> "("^string_of_ty x^" ∧ "^string_of_ty y^")"
   | True -> "⊤"
   | Cop(x, y) -> "("^string_of_ty x^" \\/ "^string_of_ty y^")"
+  | False -> "⊥"
+
 
 let rec string_of_tm tm =
   match tm with
@@ -47,6 +52,7 @@ let rec string_of_tm tm =
   | Left(x, y) -> "left("^string_of_tm x^", "^string_of_ty y^")"
   | Right(x, y) -> "right("^string_of_tm x^", "^string_of_ty y^")"
   | Case(t, x, u, y, v) -> "case "^string_of_tm t^" of "^x^" -> "^string_of_tm u^" | "^y^" -> "^string_of_tm v
+  | Ff(x, y) -> "case("^string_of_tm x^", "^string_of_ty y^")"
 
 (*let print_endline (string_of_tm(Abs(Cop(Type "A", Type "B"), "t", Right(Var "t", Type "B"))))*)
 let test = Abs(Imp(Type "A", Type "B"), "f", Abs(Type "A", "x", App(Var "f", Var "x")))
@@ -90,6 +96,7 @@ let rec infer_type ctxt tm =
     )
     | _ -> raise Type_error
   )
+  | Ff(x, y) -> check_type ctxt x False; y 
 
 and check_type ctxt tm ty =
   if infer_type ctxt tm = ty then () else raise Type_error
@@ -108,3 +115,7 @@ let () = print_endline(string_of_ty( infer_type [] (Abs(Imp(True, Type "A"), "f"
 (* ((A \/ B) => (B \/ A)) *)
 let or_comm = Abs(Cop(Type "A", Type "B"), "t", Case(Var "t", "x", Right(Var "x", Type "B"), "y", Left(Var "y", Type "A")))
 let () = print_endline (string_of_ty(infer_type [] or_comm))
+
+(* (A∧(A⇒⊥))⇒B *)
+let and_false = Abs(Pro(Type "A", Imp(Type "A", False)), "t", Ff(App(Snd(Var "t"), Fst(Var "t")), Type "B"))
+let () = print_endline (string_of_ty( infer_type [] and_false))
