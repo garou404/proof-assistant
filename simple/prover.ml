@@ -1,5 +1,12 @@
 let () = Printexc.record_backtrace true
 
+open Expr
+
+let ty_of_string s = Parser.ty Lexer.token (Lexing.from_string s)
+
+let tm_of_string s = Parser.tm Lexer.token (Lexing.from_string s)
+
+(*
 (** Type variables. *)
 type tvar = string
 
@@ -8,34 +15,34 @@ type var = string
 
 (** Types. *)
 type ty =
-  | Type of tvar
+  | TVar of tvar
   | Imp of ty * ty
-  | Pro of ty * ty
+  | And of ty * ty
   | True
-  | Cop of ty * ty
+  | Or of ty * ty
   | False
 
 type tm =
   | Var of var
   | App of tm * tm
-  | Abs of ty * var * tm
+  | Abs of var * ty * tm
   | Pair of tm * tm
   | Fst of tm
   | Snd of tm
-  | Tt
+  | Unit
   | Left of tm * ty
   | Right of tm * ty
   | Case of tm * var * tm * var *  tm
-  | Ff of tm * ty
-
+  | Absurd of tm * ty
+ *)
 
 let rec string_of_ty ty =
   match ty with
-  | Type x -> x
+  | TVar x -> x
   | Imp(x, y) -> "("^string_of_ty x^" => "^string_of_ty y^")"
-  | Pro(x, y) -> "("^string_of_ty x^" ∧ "^string_of_ty y^")"
+  | And(x, y) -> "("^string_of_ty x^" ∧ "^string_of_ty y^")"
   | True -> "⊤"
-  | Cop(x, y) -> "("^string_of_ty x^" \\/ "^string_of_ty y^")"
+  | Or(x, y) -> "("^string_of_ty x^" \\/ "^string_of_ty y^")"
   | False -> "⊥"
 
 
@@ -43,19 +50,18 @@ let rec string_of_tm tm =
   match tm with
   | Var x -> x
   | App(x, y) -> "("^string_of_tm x ^" "^ string_of_tm y^")"
-  | Abs(ty, v, t) -> "(fun (" ^v^" : "^string_of_ty ty^") -> "^string_of_tm t^")"
+  | Abs(v ,ty , t) -> "(fun (" ^v^" : "^string_of_ty ty^") -> "^string_of_tm t^")"
   | Pair(x, y) -> "⟨"^string_of_tm x^", "^string_of_tm y^"⟩"
   | Fst(x) -> "πl("^string_of_tm x^")"
   | Snd(x) -> "πr("^string_of_tm x^")"
-  | Tt -> "⟨⟩"
-(*| Tt -> ""*)
+  | Unit -> "⟨⟩"
   | Left(x, y) -> "left("^string_of_tm x^", "^string_of_ty y^")"
-  | Right(x, y) -> "right("^string_of_tm x^", "^string_of_ty y^")"
+  | Right(y, x) -> "right("^string_of_tm x^", "^string_of_ty y^")"
   | Case(t, x, u, y, v) -> "case "^string_of_tm t^" of "^x^" -> "^string_of_tm u^" | "^y^" -> "^string_of_tm v
-  | Ff(x, y) -> "case("^string_of_tm x^", "^string_of_ty y^")"
+  | Absurd(x, y) -> "case("^string_of_tm x^", "^string_of_ty y^")"
 
-(*let print_endline (string_of_tm(Abs(Cop(Type "A", Type "B"), "t", Right(Var "t", Type "B"))))*)
-let test = Abs(Imp(Type "A", Type "B"), "f", Abs(Type "A", "x", App(Var "f", Var "x")))
+
+let test = Abs("f", Imp(TVar "A", TVar "B"), Abs("x", TVar "A", App(Var "f", Var "x")))
 
 let () = print_endline(string_of_tm(test))
 
@@ -72,50 +78,110 @@ let rec infer_type ctxt tm =
     | Imp(x, y) -> check_type ctxt b x; y
     | _ -> raise Type_error
   )
-  | Abs(ty, v, t) -> Imp(ty, infer_type ((v, ty)::ctxt) t)
-  | Pair(a, b) -> Pro(infer_type ctxt a, infer_type ctxt b)
+  | Abs(v, ty, t) -> Imp(ty, infer_type ((v, ty)::ctxt) t)
+  | Pair(a, b) -> And(infer_type ctxt a, infer_type ctxt b)
   | Fst t -> (
     match infer_type ctxt t with
-    | Pro(t_a, t_b) -> t_a
+    | And(t_a, _) -> t_a
     | _ -> raise Type_error
   )
   | Snd t -> (
     match infer_type ctxt t with
-    | Pro(t_a, t_b) -> t_b
+    | And(_, t_b) -> t_b
     | _ -> raise Type_error
   )
-  | Tt -> True
-  | Left (x, a) -> Cop(infer_type ctxt x, a)
-  | Right (x, a) -> Cop(a, infer_type ctxt x)
+  | Unit -> True
+  | Left (x, a) -> Or(infer_type ctxt x, a)
+  | Right (a, x) -> Or(a, infer_type ctxt x)
   | Case(t, x, u, y, v) -> (
     match infer_type ctxt t with
-    | Cop(a, b) ->(
+    | Or(a, b) ->(
       let type_1 = infer_type ((x,a)::ctxt) u in
       let type_2 = infer_type ((y,b)::ctxt) v in
       if type_1 = type_2 then type_1 else raise Type_error
     )
     | _ -> raise Type_error
   )
-  | Ff(x, y) -> check_type ctxt x False; y 
+  | Absurd(x, y) -> check_type ctxt x False; y 
 
 and check_type ctxt tm ty =
   if infer_type ctxt tm = ty then () else raise Type_error
 
 
 (* ((A /\ B) => (B /\ A)) *)
-let and_comm = Abs(Pro(Type "A", Type "B"), "t", Pair(Snd (Var "t"), Fst (Var "t")))
+let and_comm = Abs("t", And(TVar "A", TVar "B"), Pair(Snd (Var "t"), Fst (Var "t")))
 let () = print_endline (string_of_ty (infer_type [] and_comm))
 let () = print_endline (string_of_tm and_comm)
 
 (* (⊤⇒A)⇒A *)
-let () = print_endline( string_of_ty(Imp(Imp(True, Type "A"), Type "A")))
-let () = print_endline( string_of_tm (Abs(Imp(True, Type "A"), "f", App(Var "f", Tt))))
-let () = print_endline(string_of_ty( infer_type [] (Abs(Imp(True, Type "A"), "f", App(Var "f", Tt)))))
+let () = print_endline( string_of_ty(Imp(Imp(True, TVar "A"), TVar "A")))
+let () = print_endline( string_of_tm (Abs("f", Imp(True, TVar "A"), App(Var "f", Unit))))
+let () = print_endline(string_of_ty( infer_type [] (Abs("f", Imp(True, TVar "A"), App(Var "f", Unit)))))
 
 (* ((A \/ B) => (B \/ A)) *)
-let or_comm = Abs(Cop(Type "A", Type "B"), "t", Case(Var "t", "x", Right(Var "x", Type "B"), "y", Left(Var "y", Type "A")))
+let or_comm = Abs("t", Or(TVar "A", TVar "B"), Case(Var "t", "x", Right(TVar "B", Var "x"), "y", Left(Var "y", TVar "A")))
 let () = print_endline (string_of_ty(infer_type [] or_comm))
 
 (* (A∧(A⇒⊥))⇒B *)
-let and_false = Abs(Pro(Type "A", Imp(Type "A", False)), "t", Ff(App(Snd(Var "t"), Fst(Var "t")), Type "B"))
+let and_false = Abs("t", And(TVar "A", Imp(TVar "A", False)), Absurd(App(Snd(Var "t"), Fst(Var "t")), TVar "B"))
 let () = print_endline (string_of_ty( infer_type [] and_false))
+
+
+let test_ctxt = [("x" , Imp(TVar "A", TVar "B")); ("y", And(TVar "A", TVar "B")); ("Z", True)]
+
+let string_of_ctxt ctxt =
+  String.concat " , " (List.map (fun x -> match x with (a, b) -> a ^" : "^string_of_ty b) ctxt)
+
+
+let () = print_endline (string_of_ctxt test_ctxt)
+
+type sequent = context * ty
+
+let string_of_seq sqt =
+  match sqt with (ctxt, a) -> string_of_ctxt ctxt^" |- "^string_of_ty a
+
+let () = print_endline( string_of_seq ([("x", Imp(TVar "A", TVar "B")); ("y", TVar "A")], TVar "B"))
+
+
+let rec prove env a =
+  print_endline (string_of_seq (env,a));
+  print_string "? "; flush_all ();
+  let error e = print_endline e; prove env a in
+  let cmd, arg =
+    let cmd = input_line stdin in
+    let n = try String.index cmd ' ' with Not_found -> String.length cmd in
+    let c = String.sub cmd 0 n in
+    let a = String.sub cmd n (String.length cmd - n) in
+    let a = String.trim a in
+    c, a
+  in
+  match cmd with
+  | "intro" ->
+     (
+       match a with
+       | Imp (a, b) ->
+          if arg = "" then error "Please provide an argument for intro." else
+            let x = arg in
+            let t = prove ((x,a)::env) b in
+            Abs (x, a, t)
+       | _ ->
+          error "Don't know how to introduce this."
+     )
+  | "exact" ->
+     let t = tm_of_string arg in
+     if infer_type env t <> a then error "Not the right type."
+     else t
+  | cmd -> error ("Unknown command: " ^ cmd)
+         
+let () =
+  print_endline "Please enter the formula to prove:";
+  let a = input_line stdin in
+  let a = ty_of_string a in
+  print_endline "Let's prove it.";
+  let t = prove [] a in
+  print_endline "done.";
+  print_endline "Proof term is";
+  print_endline (string_of_tm t);
+  print_string  "Typechecking... "; flush_all ();
+  assert (infer_type [] t = a);
+  print_endline "ok."
