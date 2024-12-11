@@ -164,6 +164,11 @@ let rec prove env a =
             let x = arg in
             let t = prove ((x,a)::env) b in
             Abs (x, a, t)
+       | And(a, b) ->
+          let x = prove env a in
+          let y = prove env b in
+          Pair(x, y)
+       | True -> Unit
        | _ ->
           error "Don't know how to introduce this."
      )
@@ -171,6 +176,63 @@ let rec prove env a =
      let t = tm_of_string arg in
      if infer_type env t <> a then error "Not the right type."
      else t
+  | "elim" ->(
+    if arg = "" then error "Please provide an argument for elim." else
+      let tx = List.assoc arg env in
+      match tx with
+      | Imp(ta, tb) when tb = a ->(
+        let y = prove env ta in
+        App(Var arg, y)
+      )
+      | Or(ta, tb) ->(
+        (*let t = prove env tx in*)
+        let u = prove ((arg,ta)::env) a in
+        let v = prove ((arg,tb)::env) a in
+        (*Case(Var arg, "u", u, "v", v)*)
+        print_endline (string_of_tm (Case(Var arg, "u", u, "v", v)));
+        Case(Var arg, arg, u, arg, v)
+      )
+      | False -> error "Not implemented yet"
+      | _ ->
+         error "Don't know how to eliminate this."
+  )
+  | "cut"-> (
+    if arg = "" then error "Please provide an argument for elim." else
+      let b = ty_of_string arg in
+      let tm1 = prove env (Imp(b, a)) in
+      let tm2 = prove env (b) in
+      App(tm1, tm2)
+  )
+  | "fst" -> (
+    if arg = "" then error "Please provide an argument for elim." else
+      let x = arg in
+      let a_and_b = List.assoc x env in
+      let t = prove env a_and_b in
+      Fst (Var x)
+  )
+  | "snd" -> (
+    if arg = "" then error "Please provide an argument for elim." else
+      let x = arg in
+      let a_and_b = List.assoc x env in
+      let t = prove env a_and_b in
+      Snd (Var x)
+  )
+  | "left" -> (
+    match a with
+    | Or(a, b) -> (
+      let c = prove env a in
+      Left(c, b)
+    )
+    | _ -> error ("Type error")
+  )
+  | "right" -> (
+    match a with
+    | Or(a, b) -> (
+      let x = prove env b in
+      Right(a, x)
+    )
+    | _ -> error ("Type error")
+  )
   | cmd -> error ("Unknown command: " ^ cmd)
          
 let () =
