@@ -12,6 +12,7 @@ type ty =
   | True
   | Or of ty * ty
   | False
+  | Nat
 
 type tm =
   | Var of var
@@ -25,3 +26,6 @@ type tm =
   | Right of ty * tm
   | Case of tm * var * tm * var *  tm
   | Absurd of tm * ty
+  | Zero
+  | S of tm
+  | Rec of tm * tm * var * var * tm

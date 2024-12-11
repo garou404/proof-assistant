@@ -14,6 +14,7 @@ let rec string_of_ty ty =
   | True -> "⊤"
   | Or(x, y) -> "("^string_of_ty x^" \\/ "^string_of_ty y^")"
   | False -> "⊥"
+  | Nat -> "Nat"
 
 
 let rec string_of_tm tm =
@@ -29,6 +30,9 @@ let rec string_of_tm tm =
   | Right(y, x) -> "right("^string_of_tm x^", "^string_of_ty y^")"
   | Case(t, x, u, y, v) -> "case "^string_of_tm t^" of "^x^" -> "^string_of_tm u^" | "^y^" -> "^string_of_tm v
   | Absurd(x, y) -> "case("^string_of_tm x^", "^string_of_ty y^")"
+  | Zero -> "Z"
+  | S x -> "S( "^string_of_tm x^")"
+  | Rec(n, z, x, y, s) -> "rec("^string_of_tm n^", "^string_of_tm z^", "^x^y^" -> "^string_of_tm s^")"
 
 
 type context = (var * ty) list
@@ -68,10 +72,20 @@ let rec infer_type ctxt tm =
     )
     | _ -> raise Type_error
   )
-  | Absurd(x, y) -> check_type ctxt x False; y 
+  | Absurd(x, y) -> check_type ctxt x False; y
+  | Zero -> Nat
+  | S(x) -> infer_type ctxt x
+  | Rec(n, z, x, y, s) -> (
+    check_type ctxt n Nat;
+    let type_1 = infer_type ctxt z in
+    let type_2 = infer_type ((x,Nat)::(y,type_1)::ctxt) s in
+    if type_1 = type_2 then type_1 else raise Type_error
+  )
 
 and check_type ctxt tm ty =
   if infer_type ctxt tm = ty then () else raise Type_error
+
+let test = S(S(Zero))
 
 (*
 (* ((A /\ B) => (B /\ A)) *)
@@ -117,22 +131,29 @@ let rec prove env a =
     c, a
   in
   match cmd with
-  | "intro" ->
-     (
-       match a with
-       | Imp (a, b) ->
-          if arg = "" then error "Please provide an argument for intro." else
-            let x = arg in
-            let t = prove ((x,a)::env) b in
-            Abs (x, a, t)
-       | And(a, b) ->
-          let x = prove env a in
-          let y = prove env b in
-          Pair(x, y)
-       | True -> Unit
-       | _ ->
-          error "Don't know how to introduce this."
-     )
+  | "intro" -> (
+    match a with
+    | Imp (a, b) ->
+       if arg = "" then error "Please provide an argument for intro." else
+         let x = arg in
+         let t = prove ((x,a)::env) b in
+         Abs (x, a, t)
+    | And(a, b) ->
+       let x = prove env a in
+       let y = prove env b in
+       Pair(x, y)
+    | True -> Unit
+    | Nat ->  (
+      if arg = "" then error "Please provide an argument for intro." else
+        let t = tm_of_string arg in
+        print_endline(string_of_tm t);
+        match t with
+        | Zero -> Zero
+        | _ -> prove env Nat
+    )
+    | _ ->
+       error "Don't know how to introduce this."
+  )
   | "exact" ->
      let t = tm_of_string arg in
      if infer_type env t <> a then error "Not the right type."
@@ -154,6 +175,10 @@ let rec prove env a =
         Case(Var arg, arg, u, arg, v)
       )
       | False -> Absurd(Var arg, a)
+      (*| Nat -> (
+        
+        Rec(_,_,_,_,_)
+      )*)
       | _ ->
          error "Don't know how to eliminate this."
   )
