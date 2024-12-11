@@ -1,0 +1,8 @@
+not (not (A \/ not A))
+intro r
+elim r
+right
+intro x
+elim r
+left
+exact x

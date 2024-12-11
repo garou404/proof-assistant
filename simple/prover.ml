@@ -6,36 +6,6 @@ let ty_of_string s = Parser.ty Lexer.token (Lexing.from_string s)
 
 let tm_of_string s = Parser.tm Lexer.token (Lexing.from_string s)
 
-(*
-(** Type variables. *)
-type tvar = string
-
-(** Term variables. *)
-type var = string
-
-(** Types. *)
-type ty =
-  | TVar of tvar
-  | Imp of ty * ty
-  | And of ty * ty
-  | True
-  | Or of ty * ty
-  | False
-
-type tm =
-  | Var of var
-  | App of tm * tm
-  | Abs of var * ty * tm
-  | Pair of tm * tm
-  | Fst of tm
-  | Snd of tm
-  | Unit
-  | Left of tm * ty
-  | Right of tm * ty
-  | Case of tm * var * tm * var *  tm
-  | Absurd of tm * ty
- *)
-
 let rec string_of_ty ty =
   match ty with
   | TVar x -> x
@@ -60,10 +30,6 @@ let rec string_of_tm tm =
   | Case(t, x, u, y, v) -> "case "^string_of_tm t^" of "^x^" -> "^string_of_tm u^" | "^y^" -> "^string_of_tm v
   | Absurd(x, y) -> "case("^string_of_tm x^", "^string_of_ty y^")"
 
-
-let test = Abs("f", Imp(TVar "A", TVar "B"), Abs("x", TVar "A", App(Var "f", Var "x")))
-
-let () = print_endline(string_of_tm(test))
 
 type context = (var * ty) list
 
@@ -107,7 +73,7 @@ let rec infer_type ctxt tm =
 and check_type ctxt tm ty =
   if infer_type ctxt tm = ty then () else raise Type_error
 
-
+(*
 (* ((A /\ B) => (B /\ A)) *)
 let and_comm = Abs("t", And(TVar "A", TVar "B"), Pair(Snd (Var "t"), Fst (Var "t")))
 let () = print_endline (string_of_ty (infer_type [] and_comm))
@@ -128,19 +94,14 @@ let () = print_endline (string_of_ty( infer_type [] and_false))
 
 
 let test_ctxt = [("x" , Imp(TVar "A", TVar "B")); ("y", And(TVar "A", TVar "B")); ("Z", True)]
-
+ *)
 let string_of_ctxt ctxt =
   String.concat " , " (List.map (fun x -> match x with (a, b) -> a ^" : "^string_of_ty b) ctxt)
-
-
-let () = print_endline (string_of_ctxt test_ctxt)
 
 type sequent = context * ty
 
 let string_of_seq sqt =
   match sqt with (ctxt, a) -> string_of_ctxt ctxt^" |- "^string_of_ty a
-
-let () = print_endline( string_of_seq ([("x", Imp(TVar "A", TVar "B")); ("y", TVar "A")], TVar "B"))
 
 
 let rec prove env a =
@@ -192,7 +153,7 @@ let rec prove env a =
         print_endline (string_of_tm (Case(Var arg, "u", u, "v", v)));
         Case(Var arg, arg, u, arg, v)
       )
-      | False -> error "Not implemented yet"
+      | False -> Absurd(Var arg, a)
       | _ ->
          error "Don't know how to eliminate this."
   )
@@ -206,16 +167,16 @@ let rec prove env a =
   | "fst" -> (
     if arg = "" then error "Please provide an argument for elim." else
       let x = arg in
-      let a_and_b = List.assoc x env in
-      let t = prove env a_and_b in
-      Fst (Var x)
+      match (List.assoc x env) with
+      | And(a1, _) when a1 = a -> Fst(Var x)
+      | _ -> error "Type error"
   )
   | "snd" -> (
     if arg = "" then error "Please provide an argument for elim." else
       let x = arg in
-      let a_and_b = List.assoc x env in
-      let t = prove env a_and_b in
-      Snd (Var x)
+      match (List.assoc x env) with
+      | And(_, b1) when b1 = a -> Snd(Var x)
+      | _ -> error "Type error"
   )
   | "left" -> (
     match a with
