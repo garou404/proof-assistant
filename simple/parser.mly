@@ -8,7 +8,7 @@ open Expr
 %token FST SND LEFT RIGHT ABSURD
 %token <string> IDENT
 %token EOF
-%token NAT ZERO SUCC REC
+%token NAT REC SUCC ZERO
 
 %right IMP
 %right OR
@@ -28,10 +28,10 @@ ty:
   | ty AND ty    { And ($1, $3) }
   | ty OR ty     { Or ($1, $3) }
   | NOT ty       { Imp ($2, False) }
-  | TRUE         { True }
+  | TRUE         { print_endline "NAT";True }
   | FALSE        { False }
   | LPAR ty RPAR { $2 }
-  | NAT          { Nat }
+  | NAT          { print_endline "NAAAT";Nat }
 
 /* A term */
 tm:
@@ -50,11 +50,11 @@ stm:
   | LPAR tm RPAR                 { $2 }
   | FST stm                      { Fst $2 }
   | SND stm                      { Snd $2 }
-  | LPAR RPAR                    { Unit }
+  | LPAR RPAR                    { print_endline "jsptest";Unit }
   | LPAR tm COMMA tm RPAR        { Pair ($2, $4) }
   | LEFT LPAR tm COMMA ty RPAR   { Left ($3, $5) }
   | RIGHT LPAR ty COMMA tm RPAR  { Right ($3, $5) }
   | ABSURD LPAR tm COMMA ty RPAR { Absurd ($3, $5) }
-  | ZERO                         { Zero }
+  | ZERO                         { print_endline "ouuuo";Zero }
   | SUCC stm                     { S $2 }
   | REC LPAR tm COMMA tm COMMA IDENT COMMA IDENT TO tm RPAR { Rec ($3, $5, $7, $9, $11) }

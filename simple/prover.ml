@@ -143,7 +143,9 @@ let rec prove env a =
        let y = prove env b in
        Pair(x, y)
     | True -> Unit
-    | Nat ->  (
+    | Nat -> (
+      print_endline "TEST";
+      print_endline arg;
       if arg = "" then error "Please provide an argument for intro." else
         let t = tm_of_string arg in
         print_endline(string_of_tm t);
@@ -170,15 +172,14 @@ let rec prove env a =
         (*let t = prove env tx in*)
         let u = prove ((arg,ta)::env) a in
         let v = prove ((arg,tb)::env) a in
-        (*Case(Var arg, "u", u, "v", v)*)
-        print_endline (string_of_tm (Case(Var arg, "u", u, "v", v)));
         Case(Var arg, arg, u, arg, v)
       )
       | False -> Absurd(Var arg, a)
-      (*| Nat -> (
-        
-        Rec(_,_,_,_,_)
-      )*)
+      | Nat -> (
+        let z = prove env a in
+        let s = prove (("x",Nat)::("y",a)::env) a in
+        Rec(Var arg,z,"x","y",s)
+      )
       | _ ->
          error "Don't know how to eliminate this."
   )
