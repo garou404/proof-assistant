@@ -38,6 +38,8 @@ rule token = parse
   | "→"      { TO }
   | "nat"    { NAT }
   | "rec"    { REC }
+  | "Z"      { ZERO }
+  | "S"      { SUCC }
   | (['A'-'Z''a'-'z''0'-'9']+ as s) { IDENT s }
   | space+ { token lexbuf }
   | "\n" { new_line lexbuf; token lexbuf }
