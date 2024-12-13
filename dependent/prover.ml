@@ -10,8 +10,8 @@ let rec to_string e =
   | Type -> "Type"
   | Var x -> x
   | App(a, b) -> "("^to_string a^" "^to_string b^")"
-  | Abs (a, e1, e2) -> "(λ "^a^" : "^to_string e1^". "^to_string e2^" )"
-  | Pi(x, e1, e2) -> "Π("^x^" : "^to_string e1^")."^to_string e2
+  | Abs (a, e1, e2) -> "(fun ("^a^" : "^to_string e1^") -> "^to_string e2^")"
+  | Pi(x, e1, e2) -> "(Pi ("^x^" : "^to_string e1^") -> "^to_string e2^")"
   | Nat -> assert false
   | Z -> assert false
   | S _ -> assert false
@@ -61,7 +61,7 @@ type context = (var * (expr * expr option)) list
 exception Type_error of string
 
 let string_of_context ctxt =
-  String.concat " , " (
+  String.concat " \n" (
       List.map (
           fun x -> (
             match x with
@@ -157,22 +157,30 @@ let conv ctxt e e' =
   alpha normalized_e normalized_e'
 
 
-let rec infer ctxt e =
+let rec infer (ctxt : context) e =
   match e with
   | Var x ->(
     match List.assoc x ctxt with
-    | (_, Some b) -> b
-    | (a, None) -> a
+    | (a, _) -> a
   )
-  | Abs(va, x, y) -> Pi(va, x, infer ((va, (x, None))::ctxt) y)
+  | Abs(va, x, y) -> (
+    print_endline "Abs(va, x, y)";
+    print_endline (va^" : "^to_string x^",  "^to_string y);
+      Pi(va, x, infer ((va, (x, None))::ctxt) y)
+  )
   | App(x, y) -> (
-    let t1 = infer ctxt y in
-    let t2 = infer ctxt x in
-    match t2 with
+    let t1 = infer ctxt x in
+    let t2 = infer ctxt y in
+    match t1 with
     | Pi(n, m, p) ->(
-      if conv ctxt m t1 then subst n y p else
+      if conv ctxt m t2 then subst n y p else
         raise (Type_error ("error: "^to_string m^" and "^to_string t1^"should be the same type"))
-    )       
+    )
+    | Abs(n, m, p) ->(
+      let p1 = infer ((n, (m, None))::ctxt) p in 
+      if conv ctxt m t2 then subst n y p1 else
+        raise (Type_error ("error: "^to_string m^" and "^to_string t1^"should be the same type"))
+    )
     | _ -> raise (Type_error (to_string t2^" should be of type Pi"))
   )
   | Pi(va, x, y) -> (
@@ -191,7 +199,11 @@ let rec infer ctxt e =
   | J(_, _, _, _, _) -> assert false
 
 let check ctxt e e' =
-  if infer ctxt e = e' then () else raise (Type_error "Wrong type")
+  print_endline (string_of_context ctxt);
+  print_endline (to_string e');
+  print_endline (to_string e);
+  print_endline (to_string (infer ctxt e));
+  if (infer ctxt e) = e' then () else raise (Type_error "Wrong type")
 
 let () =
   let env = ref [] in
@@ -210,7 +222,7 @@ let () =
       let cmd, arg =
         let cmd = input_line stdin in
         output_string file (cmd^"\n");
-        print_endline cmd;
+        (*print_endline cmd;*)
         split ' ' cmd
       in
       match cmd with
@@ -227,11 +239,11 @@ let () =
         env := (x,(a,Some t)) :: !env;
         print_endline (x^" defined to "^to_string t^" of type "^to_string a)
       | "context" ->
-        print_endline (string_of_context !env)
+         print_endline (string_of_context !env)
       | "type" ->
-        let t = of_string arg in
-        let a = infer !env t in
-        print_endline (to_string t^" is of type "^to_string a)
+         let t = of_string arg in
+         let a = infer !env t in
+         print_endline (to_string t^" is of type "^to_string a)
       | "check" ->
         let t, a = split '=' arg in
         let t = of_string t in

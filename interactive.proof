@@ -1,0 +1,5 @@
+assume Bool : Type
+assume true : Bool
+assume false : Bool
+define idBool = fun (b : Bool) -> b
+check idBool false = Bool
