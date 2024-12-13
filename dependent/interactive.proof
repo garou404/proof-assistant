@@ -1,0 +1,8 @@
+assume Bool : Type
+assume true : Bool
+false assumed of type Bool
+false assumed of type Bool
+assume false : Bool
+context
+define idBool = fun (b : Bool) -> b
+type idBool true
