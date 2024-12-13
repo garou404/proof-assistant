@@ -62,13 +62,15 @@ exception Type_error of string
 
 let string_of_context ctxt =
   String.concat " \n" (
-      List.map (
-          fun x -> (
-            match x with
-            | (a, (b, Some c)) -> a^" : "^to_string b^" = "^to_string c
-            | (a, (b, None)) -> a ^" : "^to_string b
-          )
-        ) ctxt
+      List.rev(
+          List.map (
+              fun x -> (
+                match x with
+                | (a, (b, Some c)) -> a^" : "^to_string b^" = "^to_string c
+                | (a, (b, None)) -> a ^" : "^to_string b
+              )
+            ) ctxt
+        )
     )
 
 let rec red (ctxt : context) e =
@@ -164,8 +166,6 @@ let rec infer (ctxt : context) e =
     | (a, _) -> a
   )
   | Abs(va, x, y) -> (
-    print_endline "Abs(va, x, y)";
-    print_endline (va^" : "^to_string x^",  "^to_string y);
       Pi(va, x, infer ((va, (x, None))::ctxt) y)
   )
   | App(x, y) -> (
@@ -199,10 +199,6 @@ let rec infer (ctxt : context) e =
   | J(_, _, _, _, _) -> assert false
 
 let check ctxt e e' =
-  print_endline (string_of_context ctxt);
-  print_endline (to_string e');
-  print_endline (to_string e);
-  print_endline (to_string (infer ctxt e));
   if (infer ctxt e) = e' then () else raise (Type_error "Wrong type")
 
 let () =
